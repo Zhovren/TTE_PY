@@ -1,6 +1,7 @@
 # Load the package
 library(TrialEmulation)
 
+# 1. Setup
 trial_pp  <- trial_sequence(estimand = "PP")  # Per-protocol
 trial_itt <- trial_sequence(estimand = "ITT") # Intention-to-treat
 
@@ -9,6 +10,7 @@ dir.create(trial_pp_dir)
 trial_itt_dir <- file.path(tempdir(), "trial_itt")
 dir.create(trial_itt_dir)
 
+# 2. Data preparation
 data("data_censored") # dummy data in the package
 head(data_censored)
 
@@ -37,6 +39,8 @@ trial_itt <- set_data(
 
 trial_itt
 
+# 3. Weight models and censoring
+# 3.1 Censoring due to treatment switching
 trial_pp <- trial_pp |>
   set_switch_weight_model(
     numerator    = ~ age,
@@ -45,6 +49,7 @@ trial_pp <- trial_pp |>
   )
 trial_pp@switch_weights
 
+# 3.2 Other informative censoring
 trial_pp <- trial_pp |>
   set_censor_weight_model(
     censor_event = "censored",
@@ -65,6 +70,7 @@ trial_itt <- set_censor_weight_model(
 )
 trial_itt@censor_weights
 
+# 4. Calculate Weights
 trial_pp  <- trial_pp |> calculate_weights()
 trial_itt <- calculate_weights(trial_itt)
 
@@ -72,9 +78,11 @@ show_weight_models(trial_itt)
 
 show_weight_models(trial_pp)
 
+# 5. Specify Outcome Model
 trial_pp  <- set_outcome_model(trial_pp)
 trial_itt <- set_outcome_model(trial_itt, adjustment_terms = ~x2)
 
+# 6. Expand Trials
 trial_pp <- set_expansion_options(
   trial_pp,
   output     = save_to_datatable(),
@@ -86,13 +94,16 @@ trial_itt <- set_expansion_options(
   chunk_size = 500
 )
 
+# 6.1 Create Sequence of Trials Data
 trial_pp  <- expand_trials(trial_pp)
 trial_itt <- expand_trials(trial_itt)
 
 trial_pp@expansion
 
+# 7. Load or Sample from Expanded Data
 trial_itt <- load_expanded_data(trial_itt, seed = 1234, p_control = 0.5)
 
+# 8. Fit Marginal Structural Model
 trial_itt <- fit_msm(
   trial_itt,
   weight_cols    = c("weight", "sample_weight"),
@@ -110,6 +121,7 @@ trial_itt@outcome_model@fitted@model$vcov
 
 trial_itt
 
+# 9. Inference
 preds <- predict(
   trial_itt,
   newdata       = outcome_data(trial_itt)[trial_period == 1, ],
